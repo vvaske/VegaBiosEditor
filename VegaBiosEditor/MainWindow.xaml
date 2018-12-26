@@ -1,0 +1,276 @@
+﻿<Window x:Class="VegaBiosEditor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:VegaBiosEditor"
+        mc:Ignorable="d"
+        Title="VegaBiosEditor" Height="415" Width="1008">
+
+    <Grid x:Name="LayoutRoot" Background="White" Margin="0,0,0,0">
+
+        <Button x:Name="open" Content="OPEN" Width="82" Margin="10,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Click="OpenFileDialog_Click" />
+        <Button x:Name="save" Content="SAVE" Width="98" Margin="97,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Click="SaveFileDialog_Click" RenderTransformOrigin="1.517,0.5" />
+        <TextBox x:Name="txtChecksum" Text="" Margin="205,10,0,0" TextAlignment="Center" Height="20" VerticalAlignment="Top" HorizontalAlignment="Left" Width="50" />
+
+        <GroupBox x:Name="boxROM" Header="ROM" Margin="10,35,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="194">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="NAME" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tableROM" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="NAME" Text="{Binding NAME, Mode=OneWay}" FontSize="10" TextAlignment="Left" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxPOWERPLAY" Header="POWERPLAY" Margin="255,35,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="194">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="NAME" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tablePOWERPLAY" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="NAME" Text="{Binding NAME, Mode=OneWay}" FontSize="10" TextAlignment="Left" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxPOWERTUNE" Header="POWERTUNE" Margin="500,35,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="194">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="NAME" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tablePOWERTUNE" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="NAME" Text="{Binding NAME, Mode=OneWay}" FontSize="10" TextAlignment="Left" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxFAN" Header="FAN" Margin="10,195,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="194">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="NAME" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tableFAN" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="NAME" Text="{Binding NAME, Mode=OneWay}" FontSize="10" TextAlignment="Left" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxGPU" Header="GPU" Margin="255,195,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="174" Margin="-14,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Center" Text="MHz" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="mV" />
+                    </Grid>
+                    <ListView x:Name="tableGPU" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="MHZ" Text="{Binding MHZ, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="0"/>
+                                    <TextBox x:Name="MV" Text="{Binding MV, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxMEM" Header="MEMORY" Margin="500,195,0,0" FontSize="10" Height="160" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="174" Margin="-14,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Center" Text="MHz" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="mV" />
+                    </Grid>
+                    <ListView x:Name="tableMEMORY" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="MHZ" Text="{Binding MHZ, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="0"/>
+                                    <TextBox x:Name="MV" Text="{Binding MV, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <GroupBox x:Name="boxVRAM" Header="VRAM" Margin="745,35,0,0" FontSize="10" Height="320" VerticalAlignment="Top" HorizontalAlignment="Left" Width="240" >
+            <Grid>
+                <Grid Margin="10,35,10,169" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="194">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="NAME" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tableVRAM" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*"/>
+                                        <ColumnDefinition />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="NAME" Text="{Binding NAME, Mode=OneWay}" FontSize="10" TextAlignment="Left" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+                <ComboBox x:Name="listVRAM" HorizontalAlignment="Left" Height="20" Margin="10,10,0,0" VerticalAlignment="Top" Width="208" SelectionChanged="listVRAM_SelectionChanged"/>
+                <Grid Margin="10,136,10,10" Background="LightGray">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid Width="154" Margin="-40,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" TextAlignment="Left" Text="TIMING (MHz)" />
+                        <TextBlock Grid.Column="1" TextAlignment="Center" Text="VALUE" />
+                    </Grid>
+                    <ListView x:Name="tableVRAM_TIMING" Grid.Row="1" VirtualizingPanel.IsVirtualizing="False" >
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Width="174" >
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition />
+                                        <ColumnDefinition Width="2*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="MHZ" Text="{Binding MHZ, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="0"/>
+                                    <TextBox x:Name="VALUE" Text="{Binding VALUE, Mode=OneWay}" FontSize="10" TextAlignment="Center" Grid.Column="1"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+        </GroupBox>
+        <TextBox x:Name="txtCrcOk" HorizontalAlignment="Left" Height="20" Margin="195,10,0,0" TextWrapping="Wrap" Text="" VerticalAlignment="Top" Width="50" Visibility="Hidden"/>
+        <Button x:Name="fixCRC" Content="Fix Crc" HorizontalAlignment="Left" Margin="255,10,0,0" VerticalAlignment="Top" Width="75" Visibility="Hidden"/>
+        <TextBox x:Name="txtRamNotes" HorizontalAlignment="Left" Height="23" Margin="500,7,0,0" TextWrapping="Wrap" Text=" " VerticalAlignment="Top" Width="485"/>
+        <Button Content="ONE CLICK TIMING PATCH" HorizontalAlignment="Left" Margin="745,355,0,0" VerticalAlignment="Top" Width="240" Click="Button_Click" Visibility="Hidden"/>
+
+    </Grid>
+</Window>
+
