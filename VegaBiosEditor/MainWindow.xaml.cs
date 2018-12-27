@@ -802,7 +802,7 @@ namespace VegaBiosEditor
                         {
                             atom_vega10_clk_entries[i] = fromBytes<ATOM_Vega10_CLK_Dependency_Record>(buffer.Skip(atom_vega10_socclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_SOCCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_CLK_Dependency_Record)) * i).ToArray());
                         }
-
+                        /*
                         atom_vram_info_offset = atom_data_table.VRAM_Info;
                         atom_vram_info = fromBytes<ATOM_VRAM_INFO>(buffer.Skip(atom_vram_info_offset).ToArray());
                         atom_vram_entries = new ATOM_VRAM_ENTRY[atom_vram_info.ucNumOfVRAMModule];
@@ -826,7 +826,7 @@ namespace VegaBiosEditor
                                 Array.Resize(ref atom_vram_timing_entries, i);
                                 break;
                             }
-                        }
+                        }*/
 
                         tableROM.Items.Clear();
                         tableROM.Items.Add(new
@@ -1081,7 +1081,7 @@ namespace VegaBiosEditor
                                 TT = ("0x" + atom_vddc_entries[i].usVdd.ToString("X"))
                             });
                         }*/
-
+                        /*
                         listVRAM.Items.Clear();
                         for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
                         {
@@ -1114,7 +1114,7 @@ namespace VegaBiosEditor
                                 VALUE = ByteArrayToString(atom_vram_timing_entries[i].ucLatency)
                             });
                         }
-
+                        */
                         save.IsEnabled = true;
                         boxROM.IsEnabled = true;
                         boxPOWERPLAY.IsEnabled = true;
@@ -1454,7 +1454,7 @@ namespace VegaBiosEditor
                     atom_vega10_clk_entries[i].ulClk = (UInt32)mhz;
                     atom_vddc_entries[i].usVdd = (UInt16)mv;
                 }*/
-
+                /*
                 updateVRAM_entries();
                 for (var i = 0; i < tableVRAM_TIMING.Items.Count; i++)
                 {
@@ -1475,7 +1475,7 @@ namespace VegaBiosEditor
                     atom_vram_timing_entries[i].ulClkRange = mhz;
                     atom_vram_timing_entries[i].ucLatency = arr;
                 }
-
+                */
                 setBytesAtPosition(buffer, atom_rom_header_offset, getBytes(atom_rom_header));
                 setBytesAtPosition(buffer, atom_vega10_powerplay_offset, getBytes(atom_vega10_powerplay_offset));
                 setBytesAtPosition(buffer, atom_vega10_powertune_table_offset, getBytes(atom_vega10_powertune_table_offset));
@@ -1495,7 +1495,7 @@ namespace VegaBiosEditor
                 {
                     setBytesAtPosition(buffer, atom_vddc_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i, getBytes(atom_vddc_entries[i]));
                 }
-
+                /*
                 var atom_vram_entry_offset = atom_vram_info_offset + Marshal.SizeOf(typeof(ATOM_VRAM_INFO));
                 for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
                 {
@@ -1508,7 +1508,7 @@ namespace VegaBiosEditor
                 {
                     setBytesAtPosition(buffer, atom_vram_timing_offset + Marshal.SizeOf(typeof(ATOM_VRAM_TIMING_ENTRY)) * i, getBytes(atom_vram_timing_entries[i]));
                 }
-
+                */
                 fixChecksum(true);
                 bw.Write(buffer);
 
@@ -1649,159 +1649,10 @@ namespace VegaBiosEditor
         {
         }
 
-        private void apply_timings(int vendor_index, int timing_index)
-        {
-            for (int i = 0; i < this.tableVRAM_TIMING.Items.Count; i++)
-            {
-                FrameworkElement root = this.tableVRAM_TIMING.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                string text = (this.FindByName("MHZ", root) as TextBlock).Text;
-                int num;
-                if (text.IndexOf(':') > 0)
-                {
-                    num = (int)this.int32.ConvertFromString(text.Substring(0, 1));
-                }
-                else
-                {
-                    num = 32768;
-                }
-                if ((uint)this.uint32.ConvertFromString(text.Substring(text.IndexOf(':') + 1)) >= 1500u && (num == vendor_index || num == 32768))
-                {
-                    TextBox textBox = this.FindByName("VALUE", root) as TextBox;
-                    string text2 = textBox.Text = this.timings[timing_index];
-                }
-            }
-        }
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            int samsung_index = -1;
-            int micron_index = -1;
-            int elpida_index = -1;
-            int hynix_1_index = -1;
-            int hynix_2_index = -1;
-            int hynix_3_index = -1;
-            int hynix_4_index = -1;
-            for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
-            {
-                string mem_vendor;
-                if (atom_vram_entries[i].strMemPNString[0] != 0)
-                {
-                    var mem_id = Encoding.UTF8.GetString(atom_vram_entries[i].strMemPNString).Substring(0, 10);
 
-                    if (rc.ContainsKey(mem_id))
-                    {
-                        mem_vendor = rc[mem_id];
-                    }
-                    else
-                    {
-                        mem_vendor = "UNKNOWN";
-                    }
-
-                    switch (mem_vendor)
-                    {
-                        case "SAMSUNG":
-                            samsung_index = i;
-                            break;
-                        case "MICRON":
-                            micron_index = i;
-                            break;
-                        case "ELPIDA":
-                            elpida_index = i;
-                            break;
-                        case "HYNIX_1":
-                            hynix_1_index = i;
-                            break;
-                        case "HYNIX_2":
-                            hynix_2_index = i;
-                            break;
-                        case "HYNIX_3":
-                            hynix_3_index = i;
-                            break;
-                        case "HYNIX_4":
-                            hynix_4_index = i;
-                            break;
-                    }
-                }
-            }
-
-            if (samsung_index != -1)
-            {
-                if (MessageBox.Show("Do you want faster Uber-mix 3.1?", "Important Question", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    int num = (int)MessageBox.Show("Samsung Memory found at index #" + (object)samsung_index + ", now applying UBERMIX 3.1 timings to 1500+ strap(s)");
-                    this.apply_timings(samsung_index, 0);
-                }
-                else
-                {
-                    int num = (int)MessageBox.Show("Samsung Memory found at index #" + (object)samsung_index + ", now applying UBERMIX 3.2 timings to 1500+ strap(s)");
-                    this.apply_timings(samsung_index, 1);
-                }
-            }
-
-            if (hynix_3_index != -1)
-            {
-                if (MessageBox.Show("Do you want Universal Hynix Timing?", "Important Question", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    MessageBox.Show("Hynix (3) Memory found at index #" + hynix_3_index + ", now applying Universal HYNIX MINING timings to 1500+ strap(s)");
-                    apply_timings(hynix_3_index, 8);
-                }
-                else
-                {
-                    MessageBox.Show("Hynix (3) Memory found at index #" + hynix_3_index + ", now applying GOOD HYNIX MINING timings to 1500+ strap(s)");
-                    apply_timings(hynix_3_index, 2);
-                }
-            }
-
-            if (hynix_2_index != -1)
-            {
-                if (MessageBox.Show("Do you want Universal Hynix Timing?", "Important Question", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    MessageBox.Show("Hynix (2) Memory found at index #" + hynix_2_index + ", now applying Universal HYNIX MINING timings to 1500+ strap(s)");
-                    apply_timings(hynix_2_index, 8);
-                }
-                else
-                {
-                    int num = (int)MessageBox.Show("Hynix (2) Memory found at index #" + (object)micron_index + ", now applying GOOD Hynix timings to 1500+ strap(s)");
-                    this.apply_timings(hynix_2_index, 3);
-                }
-            }
-
-            if (micron_index != -1)
-            {
-                if (MessageBox.Show("Do you want Good Micron Timing?", "Important Question", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
-                {
-                    int num = (int)MessageBox.Show("Micron Memory found at index #" + (object)micron_index + ", now applying Good Micron timings to 1500+ strap(s)");
-                    this.apply_timings(micron_index, 4);
-                }
-                else
-                {
-                    int num = (int)MessageBox.Show("Micron Memory found at index #" + (object)micron_index + ", now applying S Micron timings to 1500+ strap(s)");
-                    this.apply_timings(micron_index, 5);
-                }
-            }
-
-            if (hynix_4_index != -1)
-            {
-                MessageBox.Show("Hynix (4) Memory found at index #" + hynix_4_index + ", now applying HYNIX MINING timings to 1500+ strap(s)");
-                apply_timings(hynix_4_index, 9);
-            }
-
-            if (hynix_1_index != -1)
-            {
-                MessageBox.Show("Hynix (1) Memory found at index #" + hynix_1_index + ", now applying GOOD HYNIX MINING timings to 1500+ strap(s)");
-                apply_timings(hynix_1_index, 6);
-            }
-
-            if (elpida_index != -1)
-            {
-                MessageBox.Show("Elpida Memory found at index #" + elpida_index + ", now applying GOOD ELPIDA MINING timings to 1500+ strap(s)");
-                apply_timings(elpida_index, 7);
-            }
-
-            if (samsung_index == -1 && hynix_2_index == -1 && hynix_3_index == -1 && hynix_1_index == -1 && elpida_index == -1 && micron_index == -1)
-            {
-                MessageBox.Show("Sorry, no supported memory found. If you think this is an error, please file a bugreport @ github.com/vvaske/VegaBiosEditor");
-            }
         }
 
     }
