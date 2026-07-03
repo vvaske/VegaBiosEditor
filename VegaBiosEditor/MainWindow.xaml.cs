@@ -58,14 +58,6 @@ namespace VegaBiosEditor
             "69AF"
         };
 
-        private readonly string[] legacySupportedDeviceIDs = new string[]
-        {
-            "67DF",
-            "1002",
-            "4350",
-            "5249"
-        };
-
         string[] manufacturers = new string[4]
         {
             "SAMSUNG",
@@ -86,7 +78,7 @@ namespace VegaBiosEditor
 
         private AsicFamily asicFamily = AsicFamily.Unknown;
 
-        private string TOOL_VERSION = " 1.0";
+        private string TOOL_VERSION = " 1.0.1";
 
         private string TOOL_EXTRA = "By VASKE";
 
@@ -849,7 +841,7 @@ namespace VegaBiosEditor
 
         private bool IsSupportedDeviceID(string id)
         {
-            return vega10DeviceIDs.Contains(id) || vega12DeviceIDs.Contains(id) || legacySupportedDeviceIDs.Contains(id);
+            return vega10DeviceIDs.Contains(id) || vega12DeviceIDs.Contains(id);
         }
 
         private AsicFamily GetAsicFamily(string id)
