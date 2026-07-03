@@ -130,13 +130,7 @@ namespace VegaBiosEditor
 
         int atom_vega10_fan_offset;
         private ATOM_Vega10_Fan_Table atom_vega10_fan_table;
-        /*
-        int atom_vega10_powertune_table_v1_offset;
-        ATOM_Vega10_PowerTune_Table_V1 atom_vega10_powertune_table_v1;
 
-        int atom_vega10_powertune_table_v2_offset;
-        ATOM_Vega10_PowerTune_Table_V2 atom_vega10_powertune_table_v2;
-        */
         int atom_vega10_powertune_table_offset;
         private ATOM_Vega10_PowerTune_Table atom_vega10_powertune_table;
 
@@ -348,15 +342,7 @@ namespace VegaBiosEditor
             public UInt16 usODTurboPowerLimit;
             public UInt16 usODPowerSavePowerLimit;
             public UInt16 usSoftwareShutdownTemp;
-
-            // public UInt32 PowerSavingClockMax[ATOM_VEGA12_PPCLOCK_COUNT];
-            //  public UInt32 PowerSavingClockMin[ATOM_VEGA12_PPCLOCK_COUNT];
-
-            //  public UInt32 ODSettingsMax[ATOM_VEGA12_ODSETTING_COUNT];
-            //  public UInt32 ODSettingsMin[ATOM_VEGA12_ODSETTING_COUNT];
-
             public unsafe fixed UInt16 usReserve[5];
-
             //PPTable_t smcPPTable;
         }
 
@@ -480,66 +466,7 @@ namespace VegaBiosEditor
             public Byte ucFanMinRPM;
             public Byte ucFanMaxRPM;
         }
-        /*
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct ATOM_Vega10_PowerTune_Table_V1
-        {
-            public Byte ucRevId;
-            public UInt16 usSocketPowerLimit;
-            public UInt16 usBatteryPowerLimit;
-            public UInt16 usSmallPowerLimit;
-            public UInt16 usTdcLimit;
-            public UInt16 usEdcLimit;
-            public UInt16 usSoftwareShutdownTemp;
-            public UInt16 usTemperatureLimitHotSpot;
-            public UInt16 usTemperatureLimitLiquid1;
-            public UInt16 usTemperatureLimitLiquid2;
-            public UInt16 usTemperatureLimitHBM;
-            public UInt16 usTemperatureLimitVrSoc;
-            public UInt16 usTemperatureLimitVrMem;
-            public UInt16 usTemperatureLimitPlx;
-            public UInt16 usLoadLineResistance;
-            public Byte ucLiquid1_I2C_address;
-            public Byte ucLiquid2_I2C_address;
-            public Byte ucVr_I2C_address;
-            public Byte ucPlx_I2C_address;
-            public Byte ucLiquid_I2C_LineSCL;
-            public Byte ucLiquid_I2C_LineSDA;
-            public Byte ucVr_I2C_LineSCL;
-            public Byte ucVr_I2C_LineSDA;
-            public Byte ucPlx_I2C_LineSCL;
-            public Byte ucPlx_I2C_LineSDA;
-            public UInt16 usTemperatureLimitTedge;
-        }
-
-        [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        struct ATOM_Vega10_PowerTune_Table_V2
-        {
-            public Byte ucRevId;
-            public UInt16 usSocketPowerLimit;
-            public UInt16 usBatteryPowerLimit;
-            public UInt16 usSmallPowerLimit;
-            public UInt16 usTdcLimit;
-            public UInt16 usEdcLimit;
-            public UInt16 usSoftwareShutdownTemp;
-            public UInt16 usTemperatureLimitHotSpot;
-            public UInt16 usTemperatureLimitLiquid1;
-            public UInt16 usTemperatureLimitLiquid2;
-            public UInt16 usTemperatureLimitHBM;
-            public UInt16 usTemperatureLimitVrSoc;
-            public UInt16 usTemperatureLimitVrMem;
-            public UInt16 usTemperatureLimitPlx;
-            public UInt16 usLoadLineResistance;
-            public Byte ucLiquid1_I2C_address;
-            public Byte ucLiquid2_I2C_address;
-            public Byte ucLiquid_I2C_Line;
-            public Byte ucVr_I2C_address;
-            public Byte ucVr_I2C_Line;
-            public Byte ucPlx_I2C_address;
-            public Byte ucPlx_I2C_Line;
-            public UInt16 usTemperatureLimitTedge;
-        }
-        */
+       
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         struct ATOM_Vega10_PowerTune_Table
         {
