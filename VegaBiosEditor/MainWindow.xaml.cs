@@ -1,7 +1,7 @@
 ﻿using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
@@ -29,18 +29,41 @@ namespace VegaBiosEditor
 
         private byte[] buffer;
 
-        private Int32Converter int32 = new Int32Converter();
-
-        private UInt32Converter uint32 = new UInt32Converter();
-
-        private string[] supportedDeviceID = new string[6]
+        private enum AsicFamily
         {
-        "67DF",
-        "1002",
-        "4350",
-        "5249",
-        "687F",
-        "6863"
+            Unknown,
+            Vega10,
+            Vega12
+        }
+
+        private readonly string[] vega10DeviceIDs = new string[]
+        {
+            "6860",
+            "6861",
+            "6862",
+            "6863",
+            "6864",
+            "6867",
+            "6868",
+            "686C",
+            "687F"
+        };
+
+        private readonly string[] vega12DeviceIDs = new string[]
+        {
+            "69A0",
+            "69A1",
+            "69A2",
+            "69A3",
+            "69AF"
+        };
+
+        private readonly string[] legacySupportedDeviceIDs = new string[]
+        {
+            "67DF",
+            "1002",
+            "4350",
+            "5249"
         };
 
         string[] manufacturers = new string[4]
@@ -61,9 +84,13 @@ namespace VegaBiosEditor
 
         private string deviceID = "";
 
+        private AsicFamily asicFamily = AsicFamily.Unknown;
+
         private string TOOL_VERSION = " 1.0";
 
         private string TOOL_EXTRA = "By VASKE";
+
+        private string baseWindowTitle;
 
         private int atom_rom_checksum_offset = 33;
 
@@ -87,7 +114,7 @@ namespace VegaBiosEditor
         //int ATOM_Vega10_GFXCLK_Dependency_Table_offset;
         int atom_vega10_gfxclk_table_offset;
         private ATOM_Vega10_GFXCLK_Dependency_Table atom_vega10_gfxclk_table;
-        private ATOM_Vega10_GFXCLK_Dependency_Record[] atom_vega10_gfxclk_entries;
+        private ATOM_Vega10_GFXCLK_Dependency_Record_V2[] atom_vega10_gfxclk_entries;
 
         int atom_vega10_mclk_table_offset;
         private ATOM_Vega10_MCLK_Dependency_Table atom_vega10_mclk_table;
@@ -136,11 +163,11 @@ namespace VegaBiosEditor
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct ATOM_COMMON_TABLE_HEADER
         {
-            private short usStructureSize;
+            public ushort usStructureSize;
 
-            private byte ucTableFormatRevision;
+            public byte ucTableFormatRevision;
 
-            private byte ucTableContentRevision;
+            public byte ucTableContentRevision;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -370,6 +397,15 @@ namespace VegaBiosEditor
             public Byte ucVddInd;                                            /* SOC_VDD index */
             public UInt16 usCKSVOffsetandDisable;                              /* Bits 0~30: Voltage offset for CKS, Bit 31: Disable/enable for the GFXCLK level. */
             public UInt16 usAVFSOffset;                                        /* AVFS Voltage offset */
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        struct ATOM_Vega10_GFXCLK_Dependency_Record_V2
+        {
+            public UInt32 ulClk;                                               /* Clock Frequency */
+            public Byte ucVddInd;                                            /* SOC_VDD index */
+            public UInt16 usCKSVOffsetandDisable;                              /* Bits 0~30: Voltage offset for CKS, Bit 31: Disable/enable for the GFXCLK level. */
+            public UInt16 usAVFSOffset;                                        /* AVFS Voltage offset */
             public Byte ucACGEnable;
             public unsafe fixed Byte ucReserved[3];
         }
@@ -556,13 +592,21 @@ namespace VegaBiosEditor
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct ATOM_VRAM_ENTRY
         {
-            public uint ulChannelMapCfg;
+            public uint ulMemorySize;
+
+            public uint ulChannelEnable;
+
+            public uint ulMaxMemClk;
+
+            public ushort usReserved0;
+
+            public ushort usReserved1;
+
+            public ushort usReserved2;
+
+            public ushort usMemVoltage;
 
             public ushort usModuleSize;
-
-            public ushort usMcRamCfg;
-
-            public ushort usEnableChannels;
 
             public byte ucExtMemoryID;
 
@@ -574,43 +618,18 @@ namespace VegaBiosEditor
 
             public byte ucDensity;
 
-            public byte ucBankCol;
+            public byte ucTuningSetId;
 
-            public byte ucMisc;
+            public byte ucMemoryVendorRevID;
 
-            public byte ucVREFI;
+            public byte ucRefreshRate;
 
-            public ushort usReserved;
+            public byte ucHbmVendorRevID;
 
-            public ushort usMemorySize;
+            public byte ucVramReserved2;
 
-            public byte ucMcTunningSetId;
-
-            public byte ucRowNum;
-
-            public ushort usEMRS2Value;
-
-            public ushort usEMRS3Value;
-
-            public byte ucMemoryVenderID;
-
-            public byte ucRefreshRateFactor;
-
-            public byte ucFIFODepth;
-
-            public byte ucCDR_Bandwidth;
-
-            public uint ulChannelMapCfg1;
-
-            public uint ulBankMapCfg;
-
-            public uint ulReserved;
-
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 20)]
             public byte[] strMemPNString;
-
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-            public byte[] strMemPNXT;
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -628,6 +647,10 @@ namespace VegaBiosEditor
 
             public ushort usDramDataRemapTblOffset;
 
+            public ushort usTmrsSeqOffset;
+
+            public ushort usPostUCodeInitOffset;
+
             public ushort usReserved1;
 
             public byte ucNumOfVRAMModule;
@@ -641,28 +664,47 @@ namespace VegaBiosEditor
 
         static byte[] getBytes(object obj)
         {
+            if (obj == null)
+            {
+                throw new ArgumentNullException("obj");
+            }
+
             int size = Marshal.SizeOf(obj);
             byte[] arr = new byte[size];
             IntPtr ptr = Marshal.AllocHGlobal(size);
 
-            Marshal.StructureToPtr(obj, ptr, true);
-            Marshal.Copy(ptr, arr, 0, size);
-            Marshal.FreeHGlobal(ptr);
+            try
+            {
+                Marshal.StructureToPtr(obj, ptr, false);
+                Marshal.Copy(ptr, arr, 0, size);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
 
             return arr;
         }
 
         static T fromBytes<T>(byte[] arr)
         {
-            T obj = default(T);
-            int size = Marshal.SizeOf(obj);
+            int size = Marshal.SizeOf(typeof(T));
+            if (arr == null || arr.Length < size)
+            {
+                throw new InvalidDataException("Not enough data to read " + typeof(T).Name + ".");
+            }
+
             IntPtr ptr = Marshal.AllocHGlobal(size);
 
-            Marshal.Copy(arr, 0, ptr, size);
-            obj = (T)Marshal.PtrToStructure(ptr, obj.GetType());
-            Marshal.FreeHGlobal(ptr);
-
-            return obj;
+            try
+            {
+                Marshal.Copy(arr, 0, ptr, size);
+                return (T)Marshal.PtrToStructure(ptr, typeof(T));
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
         }
 
         public string GetPropertyName<T>(Expression<Func<T>> propertyLambda)
@@ -677,25 +719,652 @@ namespace VegaBiosEditor
 
         public void setBytesAtPosition(byte[] dest, int ptr, byte[] src)
         {
-            for (var i = 0; i < src.Length; i++)
+            if (dest == null)
             {
-                dest[ptr + i] = src[i];
+                throw new ArgumentNullException("dest");
             }
+            if (src == null)
+            {
+                throw new ArgumentNullException("src");
+            }
+            if (ptr < 0 || ptr > dest.Length - src.Length)
+            {
+                throw new InvalidDataException("Write outside BIOS buffer at 0x" + ptr.ToString("X") + ".");
+            }
+
+            Buffer.BlockCopy(src, 0, dest, ptr, src.Length);
+        }
+
+        private T ReadStruct<T>(int position)
+        {
+            int size = Marshal.SizeOf(typeof(T));
+            EnsureBufferRange(position, size, typeof(T).Name);
+
+            byte[] bytes = new byte[size];
+            Buffer.BlockCopy(buffer, position, bytes, 0, size);
+            return fromBytes<T>(bytes);
+        }
+
+        private void WriteStruct<T>(int position, T value)
+        {
+            setBytesAtPosition(buffer, position, getBytes(value));
+        }
+
+        private int GetGfxclkDependencyRecordSize()
+        {
+            switch (atom_vega10_gfxclk_table.ucRevId)
+            {
+                case 0:
+                    return Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Record));
+                case 1:
+                    return Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Record_V2));
+                default:
+                    throw new InvalidDataException("Unsupported Vega10 GFXCLK dependency table revision " + atom_vega10_gfxclk_table.ucRevId + ".");
+            }
+        }
+
+        private int GetGfxclkDependencyRecordOffset(int index)
+        {
+            return atom_vega10_gfxclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Table)) + GetGfxclkDependencyRecordSize() * index;
+        }
+
+        private ATOM_Vega10_GFXCLK_Dependency_Record_V2 ReadGfxclkDependencyRecord(int index)
+        {
+            int offset = GetGfxclkDependencyRecordOffset(index);
+            if (atom_vega10_gfxclk_table.ucRevId == 0)
+            {
+                ATOM_Vega10_GFXCLK_Dependency_Record record = ReadStruct<ATOM_Vega10_GFXCLK_Dependency_Record>(offset);
+                return new ATOM_Vega10_GFXCLK_Dependency_Record_V2
+                {
+                    ulClk = record.ulClk,
+                    ucVddInd = record.ucVddInd,
+                    usCKSVOffsetandDisable = record.usCKSVOffsetandDisable,
+                    usAVFSOffset = record.usAVFSOffset,
+                    ucACGEnable = 0
+                };
+            }
+
+            return ReadStruct<ATOM_Vega10_GFXCLK_Dependency_Record_V2>(offset);
+        }
+
+        private void WriteGfxclkDependencyRecord(int index, ATOM_Vega10_GFXCLK_Dependency_Record_V2 value)
+        {
+            int offset = GetGfxclkDependencyRecordOffset(index);
+            if (atom_vega10_gfxclk_table.ucRevId == 0)
+            {
+                ATOM_Vega10_GFXCLK_Dependency_Record record = new ATOM_Vega10_GFXCLK_Dependency_Record
+                {
+                    ulClk = value.ulClk,
+                    ucVddInd = value.ucVddInd,
+                    usCKSVOffsetandDisable = value.usCKSVOffsetandDisable,
+                    usAVFSOffset = value.usAVFSOffset
+                };
+                WriteStruct(offset, record);
+                return;
+            }
+
+            WriteStruct(offset, value);
+        }
+
+        private void EnsureBufferRange(int position, int length, string name)
+        {
+            if (!HasBufferRange(position, length))
+            {
+                throw new InvalidDataException(name + " is outside the BIOS buffer at 0x" + position.ToString("X") + ".");
+            }
+        }
+
+        private bool HasBufferRange(int position, int length)
+        {
+            return buffer != null && position >= 0 && length >= 0 && position <= buffer.Length - length;
+        }
+
+        private void ClearTables()
+        {
+            tableROM.Items.Clear();
+            tablePOWERPLAY.Items.Clear();
+            tablePOWERTUNE.Items.Clear();
+            tableFAN.Items.Clear();
+            tableGPU.Items.Clear();
+            tableMEMORY.Items.Clear();
+            tableVRAM.Items.Clear();
+            tableVRAM_TIMING.Items.Clear();
+            listVRAM.Items.Clear();
+            txtRamNotes.Text = "";
+        }
+
+        private void SetEditorEnabled(bool enabled)
+        {
+            bool editablePowerPlay = enabled && asicFamily == AsicFamily.Vega10;
+
+            save.IsEnabled = editablePowerPlay;
+            boxROM.IsEnabled = enabled;
+            boxPOWERPLAY.IsEnabled = editablePowerPlay;
+            boxPOWERTUNE.IsEnabled = editablePowerPlay;
+            boxFAN.IsEnabled = editablePowerPlay;
+            boxGPU.IsEnabled = editablePowerPlay;
+            boxMEM.IsEnabled = editablePowerPlay;
+            boxVRAM.IsEnabled = enabled && atom_vram_entries != null && atom_vram_entries.Length > 0;
+        }
+
+        private bool IsSupportedDeviceID(string id)
+        {
+            return vega10DeviceIDs.Contains(id) || vega12DeviceIDs.Contains(id) || legacySupportedDeviceIDs.Contains(id);
+        }
+
+        private AsicFamily GetAsicFamily(string id)
+        {
+            if (vega10DeviceIDs.Contains(id))
+            {
+                return AsicFamily.Vega10;
+            }
+            if (vega12DeviceIDs.Contains(id))
+            {
+                return AsicFamily.Vega12;
+            }
+
+            return AsicFamily.Unknown;
+        }
+
+        private string GetAsicName()
+        {
+            switch (asicFamily)
+            {
+                case AsicFamily.Vega10:
+                    return "Vega10";
+                case AsicFamily.Vega12:
+                    return "Vega12";
+                default:
+                    return "Unknown";
+            }
+        }
+
+        private ushort GetVoltageValue(ATOM_Vega10_Voltage_Lookup_Record[] table, int index, string tableName)
+        {
+            if (table == null || index < 0 || index >= table.Length)
+            {
+                throw new InvalidDataException(tableName + " voltage index " + index + " is invalid.");
+            }
+
+            return table[index].usVdd;
+        }
+
+        private void SetVoltageValue(ATOM_Vega10_Voltage_Lookup_Record[] table, int index, ushort value, string tableName)
+        {
+            if (table == null || index < 0 || index >= table.Length)
+            {
+                throw new InvalidDataException(tableName + " voltage index " + index + " is invalid.");
+            }
+
+            table[index].usVdd = value;
+        }
+
+        private string ReadAscii(int position, int length)
+        {
+            if (position <= 0 || length <= 0 || !HasBufferRange(position, 1))
+            {
+                return "";
+            }
+
+            int safeLength = Math.Min(length, buffer.Length - position);
+            return Encoding.ASCII.GetString(buffer, position, safeLength).TrimEnd('\0', ' ', '\r', '\n');
+        }
+
+        private string ReadFixedAscii(byte[] value)
+        {
+            if (value == null || value.Length == 0)
+            {
+                return "";
+            }
+
+            return Encoding.ASCII.GetString(value).TrimEnd('\0', ' ', '\r', '\n');
+        }
+
+        private byte[] MakeFixedAscii(string value, int length)
+        {
+            byte[] result = new byte[length];
+            if (String.IsNullOrEmpty(value))
+            {
+                return result;
+            }
+
+            byte[] text = Encoding.ASCII.GetBytes(value);
+            Buffer.BlockCopy(text, 0, result, 0, Math.Min(length, text.Length));
+            return result;
+        }
+
+        private uint DecodeClockValue(uint rawClock)
+        {
+            if (rawClock == 0)
+            {
+                return 0;
+            }
+
+            return rawClock >= 10000u ? rawClock / 100u : rawClock;
+        }
+
+        private ushort ReadUInt16At(int position, string name)
+        {
+            EnsureBufferRange(position, 2, name);
+            return (ushort)(buffer[position] | (buffer[position + 1] << 8));
+        }
+
+        private uint ReadUInt32At(int position, string name)
+        {
+            EnsureBufferRange(position, 4, name);
+            return (uint)(buffer[position] | (buffer[position + 1] << 8) | (buffer[position + 2] << 16) | (buffer[position + 3] << 24));
+        }
+
+        private ushort GetVramModuleSize(ATOM_VRAM_ENTRY entry)
+        {
+            ushort structSize = (ushort)Marshal.SizeOf(typeof(ATOM_VRAM_ENTRY));
+            return entry.usModuleSize >= structSize ? entry.usModuleSize : structSize;
+        }
+
+        private string GetVramTypeName(byte memoryType)
+        {
+            switch (memoryType)
+            {
+                case 0x50:
+                    return "GDDR5";
+                case 0x60:
+                    return "HBM2";
+                case 0x61:
+                    return "HBM2E";
+                case 0x70:
+                    return "GDDR6";
+                default:
+                    return "0x" + memoryType.ToString("X2");
+            }
+        }
+
+        private string GetMemoryVendorName(ATOM_VRAM_ENTRY entry)
+        {
+            string partNumber = ReadFixedAscii(entry.strMemPNString);
+            foreach (var item in rc)
+            {
+                if (partNumber.StartsWith(item.Key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return item.Value;
+                }
+            }
+
+            switch (entry.ucMemoryVendorRevID & 0x0F)
+            {
+                case 0x1:
+                    return "SAMSUNG";
+                case 0x3:
+                    return "ELPIDA";
+                case 0x6:
+                    return "HYNIX";
+                case 0xF:
+                    return "MICRON";
+                default:
+                    return "UNKNOWN";
+            }
+        }
+
+        private string GetVramModuleName(ATOM_VRAM_ENTRY entry, int index)
+        {
+            string partNumber = ReadFixedAscii(entry.strMemPNString);
+            string vendor = GetMemoryVendorName(entry);
+            string type = GetVramTypeName(entry.ucMemoryType);
+            string name = String.IsNullOrWhiteSpace(partNumber) ? "Module " + index : partNumber;
+            return name + " (" + vendor + ", " + type + ", " + entry.ulMemorySize + " MB)";
+        }
+
+        private int GetVramInfoEnd()
+        {
+            int tableSize = atom_vram_info.sHeader.usStructureSize;
+            if (tableSize <= 0 || !HasBufferRange(atom_vram_info_offset, tableSize))
+            {
+                return buffer == null ? atom_vram_info_offset : buffer.Length;
+            }
+
+            return atom_vram_info_offset + tableSize;
+        }
+
+        private int GetVramSubTableEnd(ushort subTableOffset)
+        {
+            int tableEnd = GetVramInfoEnd();
+            int subTableEnd = tableEnd;
+            ushort[] offsets = new ushort[]
+            {
+                atom_vram_info.usMemAdjustTblOffset,
+                atom_vram_info.usMemClkPatchTblOffset,
+                atom_vram_info.usMcAdjustPerTileTblOffset,
+                atom_vram_info.usMcPhyInitTableOffset,
+                atom_vram_info.usDramDataRemapTblOffset,
+                atom_vram_info.usTmrsSeqOffset,
+                atom_vram_info.usPostUCodeInitOffset
+            };
+
+            foreach (ushort offset in offsets)
+            {
+                int absolute = atom_vram_info_offset + offset;
+                if (offset > subTableOffset && absolute < subTableEnd && absolute <= tableEnd)
+                {
+                    subTableEnd = absolute;
+                }
+            }
+
+            return subTableEnd;
+        }
+
+        private string FormatUmcRegister(uint rawRegister)
+        {
+            uint address = rawRegister & 0x00FFFFFFu;
+            bool indirect = (rawRegister & 0x01000000u) != 0;
+            return "0x" + address.ToString("X6") + (indirect ? "i" : "");
+        }
+
+        private void PopulateUmcInitRegBlock(string label, ushort relativeOffset)
+        {
+            if (relativeOffset == 0)
+            {
+                return;
+            }
+
+            int blockOffset = atom_vram_info_offset + relativeOffset;
+            int blockEnd = GetVramSubTableEnd(relativeOffset);
+            if (!HasBufferRange(blockOffset, 4) || blockEnd <= blockOffset + 4)
+            {
+                tableVRAM_TIMING.Items.Add(new
+                {
+                    MHZ = label,
+                    VALUE = "Invalid UMC block @ 0x" + blockOffset.ToString("X")
+                });
+                return;
+            }
+
+            int regCount = ReadUInt16At(blockOffset, label + " UMC register count");
+            int regListOffset = blockOffset + 4;
+            int settingOffset = regListOffset + regCount * 4;
+            if (regCount <= 0 || settingOffset > blockEnd)
+            {
+                tableVRAM_TIMING.Items.Add(new
+                {
+                    MHZ = label,
+                    VALUE = "No UMC timing registers @ 0x" + blockOffset.ToString("X")
+                });
+                return;
+            }
+
+            uint[] registers = new uint[regCount];
+            for (var i = 0; i < registers.Length; i++)
+            {
+                registers[i] = ReadUInt32At(regListOffset + i * 4, label + " UMC register");
+            }
+
+            tableVRAM_TIMING.Items.Add(new
+            {
+                MHZ = label,
+                VALUE = regCount + " regs @ 0x" + blockOffset.ToString("X")
+            });
+
+            int settingSize = 4 + regCount * 4;
+            int blockIndex = 0;
+            while (settingOffset + settingSize <= blockEnd && blockIndex < 128)
+            {
+                uint settingId = ReadUInt32At(settingOffset, label + " UMC setting id");
+                uint memClockRange = settingId & 0x00FFFFFFu;
+                uint memBlockId = settingId >> 24;
+                List<string> values = new List<string>();
+
+                for (var i = 0; i < registers.Length; i++)
+                {
+                    uint data = ReadUInt32At(settingOffset + 4 + i * 4, label + " UMC setting data");
+                    values.Add(FormatUmcRegister(registers[i]) + "=" + data.ToString("X8"));
+                }
+
+                tableVRAM_TIMING.Items.Add(new
+                {
+                    MHZ = DecodeClockValue(memClockRange) + " blk " + memBlockId,
+                    VALUE = String.Join(" ", values)
+                });
+
+                settingOffset += settingSize;
+                blockIndex++;
+            }
+
+            if (blockIndex == 0)
+            {
+                tableVRAM_TIMING.Items.Add(new
+                {
+                    MHZ = label,
+                    VALUE = "No UMC timing settings @ 0x" + settingOffset.ToString("X")
+                });
+            }
+        }
+
+        private void LoadVramInfo()
+        {
+            atom_vram_entries = null;
+            atom_vram_timing_entries = null;
+
+            atom_vram_info_offset = atom_data_table.VRAM_Info;
+            if (atom_vram_info_offset <= 0 || !HasBufferRange(atom_vram_info_offset, Marshal.SizeOf(typeof(ATOM_VRAM_INFO))))
+            {
+                return;
+            }
+
+            atom_vram_info = ReadStruct<ATOM_VRAM_INFO>(atom_vram_info_offset);
+            if (atom_vram_info.ucNumOfVRAMModule == 0)
+            {
+                return;
+            }
+
+            int moduleCount = Math.Min((int)atom_vram_info.ucNumOfVRAMModule, 16);
+            atom_vram_entries = new ATOM_VRAM_ENTRY[moduleCount];
+            int entryOffset = atom_vram_info_offset + Marshal.SizeOf(typeof(ATOM_VRAM_INFO));
+
+            for (var i = 0; i < atom_vram_entries.Length; i++)
+            {
+                atom_vram_entries[i] = ReadStruct<ATOM_VRAM_ENTRY>(entryOffset);
+                entryOffset += GetVramModuleSize(atom_vram_entries[i]);
+            }
+        }
+
+        private void WriteVramInfo()
+        {
+            if (atom_vram_entries == null || atom_vram_entries.Length == 0)
+            {
+                return;
+            }
+
+            int entryOffset = atom_vram_info_offset + Marshal.SizeOf(typeof(ATOM_VRAM_INFO));
+            for (var i = 0; i < atom_vram_entries.Length; i++)
+            {
+                WriteStruct(entryOffset, atom_vram_entries[i]);
+                entryOffset += GetVramModuleSize(atom_vram_entries[i]);
+            }
+        }
+
+        private void PopulateRomTable()
+        {
+            tableROM.Items.Clear();
+            tableROM.Items.Add(new
+            {
+                NAME = "BootupMessage",
+                VALUE = "0x" + atom_rom_header.usBIOS_BootupMessageOffset.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "VendorID",
+                VALUE = "0x" + atom_rom_header.usVendorID.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "DeviceID",
+                VALUE = "0x" + atom_rom_header.usDeviceID.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "Sub ID",
+                VALUE = "0x" + atom_rom_header.usSubsystemID.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "Sub VendorID",
+                VALUE = "0x" + atom_rom_header.usSubsystemVendorID.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "Firmware Signature",
+                VALUE = "0x" + atom_rom_header.uaFirmWareSignature.ToString("X")
+            });
+            tableROM.Items.Add(new
+            {
+                NAME = "ASIC",
+                VALUE = GetAsicName()
+            });
+        }
+
+        private void PopulateVega12Summary()
+        {
+            tablePOWERPLAY.Items.Clear();
+            tablePOWERPLAY.Items.Add(new
+            {
+                NAME = "PowerPlay Table",
+                VALUE = "Vega12 read-only"
+            });
+            tablePOWERPLAY.Items.Add(new
+            {
+                NAME = "Small Power 1 (W)",
+                VALUE = atom_vega12_powerplay_table.usSmallPowerLimit1
+            });
+            tablePOWERPLAY.Items.Add(new
+            {
+                NAME = "Small Power 2 (W)",
+                VALUE = atom_vega12_powerplay_table.usSmallPowerLimit2
+            });
+            tablePOWERPLAY.Items.Add(new
+            {
+                NAME = "Boost Power (W)",
+                VALUE = atom_vega12_powerplay_table.usBoostPowerLimit
+            });
+            tablePOWERPLAY.Items.Add(new
+            {
+                NAME = "Shutdown Temp. (C)",
+                VALUE = atom_vega12_powerplay_table.usSoftwareShutdownTemp
+            });
+
+            tablePOWERTUNE.Items.Clear();
+            tableFAN.Items.Clear();
+            tableGPU.Items.Clear();
+            tableMEMORY.Items.Clear();
+        }
+
+        private void PopulateVramTables()
+        {
+            tableVRAM.Items.Clear();
+            tableVRAM_TIMING.Items.Clear();
+            listVRAM.Items.Clear();
+            atom_vram_index = -1;
+
+            if (atom_vram_entries == null || atom_vram_entries.Length == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < atom_vram_entries.Length; i++)
+            {
+                listVRAM.Items.Add(GetVramModuleName(atom_vram_entries[i], i));
+            }
+
+            listVRAM.SelectedIndex = 0;
+            ShowVramEntry(0);
+            PopulateVramTimingSummary();
+        }
+
+        private void PopulateVramTimingSummary()
+        {
+            PopulateUmcInitRegBlock("UMC timing", atom_vram_info.usMemClkPatchTblOffset);
+        }
+
+        private void ShowVramEntry(int index)
+        {
+            tableVRAM.Items.Clear();
+            if (atom_vram_entries == null || index < 0 || index >= atom_vram_entries.Length)
+            {
+                return;
+            }
+
+            atom_vram_index = index;
+            ATOM_VRAM_ENTRY entry = atom_vram_entries[atom_vram_index];
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Vendor/Rev ID",
+                VALUE = "0x" + entry.ucMemoryVendorRevID.ToString("X2")
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "HBM Vendor ID",
+                VALUE = "0x" + entry.ucHbmVendorRevID.ToString("X2")
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Size (MB)",
+                VALUE = entry.ulMemorySize
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Max Mem Clock (MHz)",
+                VALUE = DecodeClockValue(entry.ulMaxMemClk)
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Mem Voltage (mV)",
+                VALUE = entry.usMemVoltage
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Type",
+                VALUE = "0x" + entry.ucMemoryType.ToString("X2")
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Density",
+                VALUE = "0x" + entry.ucDensity.ToString("X2")
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Channels",
+                VALUE = entry.ucChannelNum
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Channel Width",
+                VALUE = entry.ucChannelWidth
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Channel Enable",
+                VALUE = "0x" + entry.ulChannelEnable.ToString("X")
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Tuning Set",
+                VALUE = entry.ucTuningSetId
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Refresh",
+                VALUE = entry.ucRefreshRate
+            });
+            tableVRAM.Items.Add(new
+            {
+                NAME = "Part Number",
+                VALUE = ReadFixedAscii(entry.strMemPNString)
+            });
         }
 
         public MainWindow()
         {
             InitializeComponent();
-            MainWindow.GetWindow(this).Title += TOOL_VERSION + " " + TOOL_EXTRA;
-
-            save.IsEnabled = false;
-            boxROM.IsEnabled = false;
-            boxPOWERPLAY.IsEnabled = false;
-            boxPOWERTUNE.IsEnabled = false;
-            boxFAN.IsEnabled = false;
-            boxGPU.IsEnabled = false;
-            boxMEM.IsEnabled = false;
-            boxVRAM.IsEnabled = false;
+            baseWindowTitle = Title + TOOL_VERSION + " " + TOOL_EXTRA;
+            Title = baseWindowTitle;
+            SetEditorEnabled(false);
 
             rc.Add("MT51J256M3", "MICRON");
             rc.Add("EDW4032BAB", "ELPIDA");
@@ -719,157 +1388,128 @@ namespace VegaBiosEditor
 
             if (openFileDialog.ShowDialog() == true)
             {
-                save.IsEnabled = false;
+                SetEditorEnabled(false);
+                atom_vram_entries = null;
+                atom_vram_timing_entries = null;
+                asicFamily = AsicFamily.Unknown;
+                ClearTables();
+                Title = baseWindowTitle + " - [" + openFileDialog.SafeFileName + "]";
 
-                tableROM.Items.Clear();
-                tablePOWERPLAY.Items.Clear();
-                tablePOWERTUNE.Items.Clear();
-                tableFAN.Items.Clear();
-                tableGPU.Items.Clear();
-                tableMEMORY.Items.Clear();
-                tableVRAM.Items.Clear();
-                tableVRAM_TIMING.Items.Clear();
-
-                MainWindow.GetWindow(this).Title += " " + "-" + " " + "[" + openFileDialog.SafeFileName + "]";
-
-                System.IO.Stream fileStream = openFileDialog.OpenFile();
-                if ((fileStream.Length != 524288) && (fileStream.Length != 524288 / 2))
+                try
                 {
-                    MessageBox.Show("This BIOS is non standard size.\nFlashing this BIOS may corrupt your graphics card.", "WARNING", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-                using (BinaryReader br = new BinaryReader(fileStream))
-                {
-                    buffer = br.ReadBytes((int)fileStream.Length);
+                    using (Stream fileStream = openFileDialog.OpenFile())
+                    {
+                        if ((fileStream.Length != 524288) && (fileStream.Length != 524288 / 2))
+                        {
+                            MessageBox.Show("This BIOS is non standard size.\nFlashing this BIOS may corrupt your graphics card.", "WARNING", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        }
+
+                        using (BinaryReader br = new BinaryReader(fileStream))
+                        {
+                            buffer = br.ReadBytes((int)fileStream.Length);
+                        }
+                    }
 
                     atom_rom_header_offset = getValueAtPosition(16, atom_rom_header_ptr);
-                    atom_rom_header = fromBytes<ATOM_ROM_HEADER>(buffer.Skip(atom_rom_header_offset).ToArray());
-                    deviceID = atom_rom_header.usDeviceID.ToString("X");
+                    if (atom_rom_header_offset < 0)
+                    {
+                        throw new InvalidDataException("ATOM ROM header pointer is outside the BIOS buffer.");
+                    }
+
+                    atom_rom_header = ReadStruct<ATOM_ROM_HEADER>(atom_rom_header_offset);
+                    deviceID = atom_rom_header.usDeviceID.ToString("X4");
+                    asicFamily = GetAsicFamily(deviceID);
                     fixChecksum(false);
 
                     MessageBoxResult msgSuported = MessageBoxResult.Yes;
-                    if (!supportedDeviceID.Contains(deviceID))
+                    if (!IsSupportedDeviceID(deviceID))
                     {
                         msgSuported = MessageBox.Show("Unsupported DeviceID 0x" + deviceID + " - Continue?", "WARNING", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                     }
                     if (msgSuported == MessageBoxResult.Yes)
                     {
-                        atom_data_table = fromBytes<ATOM_DATA_TABLES>(buffer.Skip(atom_rom_header.usMasterDataTableOffset).ToArray());
+                        atom_data_table = ReadStruct<ATOM_DATA_TABLES>(atom_rom_header.usMasterDataTableOffset);
+                        if (asicFamily == AsicFamily.Unknown)
+                        {
+                            asicFamily = AsicFamily.Vega10;
+                        }
+
+                        if (asicFamily == AsicFamily.Vega12)
+                        {
+                            atom_vega12_powerplay_offset = atom_data_table.PowerPlayInfo;
+                            atom_vega12_powerplay_table = ReadStruct<ATOM_VEGA12_POWERPLAYTABLE>(atom_vega12_powerplay_offset);
+                            LoadVramInfo();
+                            PopulateRomTable();
+                            PopulateVega12Summary();
+                            PopulateVramTables();
+                            SetEditorEnabled(true);
+                            txtRamNotes.Text = (ReadAscii(atom_rom_header.usConfigFilenameOffset, 12) + " " + ReadAscii(atom_rom_header.usBIOS_BootupMessageOffset + 2, 64)).Trim();
+                            MessageBox.Show("Vega12 BIOS recognized. PowerPlay editing is read-only until the Vega12 SMU table writer is added.", "Vega12", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+
                         atom_vega10_powerplay_offset = atom_data_table.PowerPlayInfo;
-                        atom_vega10_powerplay_table = fromBytes<ATOM_Vega10_POWERPLAYTABLE>(buffer.Skip(atom_vega10_powerplay_offset).ToArray());
+                        atom_vega10_powerplay_table = ReadStruct<ATOM_Vega10_POWERPLAYTABLE>(atom_vega10_powerplay_offset);
 
                         atom_vega10_powertune_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usPowerTuneTableOffset;
-                        atom_vega10_powertune_table = fromBytes<ATOM_Vega10_PowerTune_Table>(buffer.Skip(atom_vega10_powertune_table_offset).ToArray());
+                        atom_vega10_powertune_table = ReadStruct<ATOM_Vega10_PowerTune_Table>(atom_vega10_powertune_table_offset);
 
                         atom_vega10_fan_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usFanTableOffset;
-                        atom_vega10_fan_table = fromBytes<ATOM_Vega10_Fan_Table>(buffer.Skip(atom_vega10_fan_offset).ToArray());
+                        atom_vega10_fan_table = ReadStruct<ATOM_Vega10_Fan_Table>(atom_vega10_fan_offset);
 
                         atom_vega10_mclk_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usMclkDependencyTableOffset;
-                        atom_vega10_mclk_table = fromBytes<ATOM_Vega10_MCLK_Dependency_Table>(buffer.Skip(atom_vega10_mclk_table_offset).ToArray());
+                        atom_vega10_mclk_table = ReadStruct<ATOM_Vega10_MCLK_Dependency_Table>(atom_vega10_mclk_table_offset);
                         atom_vega10_mclk_entries = new ATOM_Vega10_MCLK_Dependency_Record[atom_vega10_mclk_table.ucNumEntries];
                         for (var i = 0; i < atom_vega10_mclk_entries.Length; i++)
                         {
-                            atom_vega10_mclk_entries[i] = fromBytes<ATOM_Vega10_MCLK_Dependency_Record>(buffer.Skip(atom_vega10_mclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Record)) * i).ToArray());
+                            atom_vega10_mclk_entries[i] = ReadStruct<ATOM_Vega10_MCLK_Dependency_Record>(atom_vega10_mclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Record)) * i);
                         }
 
                         atom_vega10_gfxclk_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usGfxclkDependencyTableOffset;
-                        atom_vega10_gfxclk_table = fromBytes<ATOM_Vega10_GFXCLK_Dependency_Table>(buffer.Skip(atom_vega10_gfxclk_table_offset).ToArray());
-                        atom_vega10_gfxclk_entries = new ATOM_Vega10_GFXCLK_Dependency_Record[atom_vega10_gfxclk_table.ucNumEntries];
+                        atom_vega10_gfxclk_table = ReadStruct<ATOM_Vega10_GFXCLK_Dependency_Table>(atom_vega10_gfxclk_table_offset);
+                        atom_vega10_gfxclk_entries = new ATOM_Vega10_GFXCLK_Dependency_Record_V2[atom_vega10_gfxclk_table.ucNumEntries];
                         for (var i = 0; i < atom_vega10_gfxclk_entries.Length; i++)
                         {
-                            atom_vega10_gfxclk_entries[i] = fromBytes<ATOM_Vega10_GFXCLK_Dependency_Record>(buffer.Skip(atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usGfxclkDependencyTableOffset + Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Record)) * i).ToArray());
+                            atom_vega10_gfxclk_entries[i] = ReadGfxclkDependencyRecord(i);
                         }
 
                         atom_vddc_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usVddcLookupTableOffset;
-                        atom_vddc_table = fromBytes<ATOM_Vega10_Voltage_Lookup_Table>(buffer.Skip(atom_vddc_table_offset).ToArray());
+                        atom_vddc_table = ReadStruct<ATOM_Vega10_Voltage_Lookup_Table>(atom_vddc_table_offset);
                         atom_vddc_entries = new ATOM_Vega10_Voltage_Lookup_Record[atom_vddc_table.ucNumEntries];
                         for (var i = 0; i < atom_vddc_table.ucNumEntries; i++)
                         {
-                            atom_vddc_entries[i] = fromBytes<ATOM_Vega10_Voltage_Lookup_Record>(buffer.Skip(atom_vddc_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i).ToArray());
+                            atom_vddc_entries[i] = ReadStruct<ATOM_Vega10_Voltage_Lookup_Record>(atom_vddc_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i);
                         }
 
                         atom_vega10_memvdd_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usVddmemLookupTableOffset;
-                        atom_vega10_memvdd_table = fromBytes<ATOM_Vega10_Voltage_Lookup_Table>(buffer.Skip(atom_vega10_memvdd_table_offset).ToArray());
+                        atom_vega10_memvdd_table = ReadStruct<ATOM_Vega10_Voltage_Lookup_Table>(atom_vega10_memvdd_table_offset);
                         atom_vega10_memvdd_record = new ATOM_Vega10_Voltage_Lookup_Record[atom_vega10_memvdd_table.ucNumEntries];
                         for (var i = 0; i < atom_vega10_memvdd_table.ucNumEntries; i++)
                         {
-                            atom_vega10_memvdd_record[i] = fromBytes<ATOM_Vega10_Voltage_Lookup_Record>(buffer.Skip(atom_vega10_memvdd_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i).ToArray());
+                            atom_vega10_memvdd_record[i] = ReadStruct<ATOM_Vega10_Voltage_Lookup_Record>(atom_vega10_memvdd_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i);
                         }
 
                         atom_vega10_socclk_table_offset = atom_data_table.PowerPlayInfo + atom_vega10_powerplay_table.usSocclkDependencyTableOffset;
-                        atom_vega10_socclk_table = fromBytes<ATOM_Vega10_SOCCLK_Dependency_Table>(buffer.Skip(atom_vega10_socclk_table_offset).ToArray());
+                        atom_vega10_socclk_table = ReadStruct<ATOM_Vega10_SOCCLK_Dependency_Table>(atom_vega10_socclk_table_offset);
                         atom_vega10_clk_entries = new ATOM_Vega10_CLK_Dependency_Record[atom_vega10_socclk_table.ucNumEntries];
                         for (var i = 0; i < atom_vega10_clk_entries.Length; i++)
                         {
-                            atom_vega10_clk_entries[i] = fromBytes<ATOM_Vega10_CLK_Dependency_Record>(buffer.Skip(atom_vega10_socclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_SOCCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_CLK_Dependency_Record)) * i).ToArray());
+                            atom_vega10_clk_entries[i] = ReadStruct<ATOM_Vega10_CLK_Dependency_Record>(atom_vega10_socclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_SOCCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_CLK_Dependency_Record)) * i);
                         }
-                        /*
-                        atom_vram_info_offset = atom_data_table.VRAM_Info;
-                        atom_vram_info = fromBytes<ATOM_VRAM_INFO>(buffer.Skip(atom_vram_info_offset).ToArray());
-                        atom_vram_entries = new ATOM_VRAM_ENTRY[atom_vram_info.ucNumOfVRAMModule];
-                        var atom_vram_entry_offset = atom_vram_info_offset + Marshal.SizeOf(typeof(ATOM_VRAM_INFO));
-                        for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
-                        {
-                            atom_vram_entries[i] = fromBytes<ATOM_VRAM_ENTRY>(buffer.Skip(atom_vram_entry_offset).ToArray());
-                            atom_vram_entry_offset += atom_vram_entries[i].usModuleSize;
-                        }
+                        LoadVramInfo();
 
-                        atom_vram_timing_offset = atom_vram_info_offset + atom_vram_info.usMemClkPatchTblOffset + 0x9302;
-                        atom_vram_timing_entries = new ATOM_VRAM_TIMING_ENTRY[MAX_VRAM_ENTRIES];
-                        for (var i = 0; i < MAX_VRAM_ENTRIES; i++)
-                        {
-                            atom_vram_timing_entries[i] = fromBytes<ATOM_VRAM_TIMING_ENTRY>(buffer.Skip(atom_vram_timing_offset + Marshal.SizeOf(typeof(ATOM_VRAM_TIMING_ENTRY)) * i).ToArray());
-
-                            // atom_vram_timing_entries have an undetermined length
-                            // attempt to determine the last entry in the array
-                            if (atom_vram_timing_entries[i].ulClkRange == 0)
-                            {
-                                Array.Resize(ref atom_vram_timing_entries, i);
-                                break;
-                            }
-                        }*/
-
-                        tableROM.Items.Clear();
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "BootupMessage",
-                            VALUE = "0x" + atom_rom_header.usBIOS_BootupMessageOffset.ToString("X")
-                        });
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "VendorID",
-                            VALUE = "0x" + atom_rom_header.usVendorID.ToString("X")
-                        });
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "DeviceID",
-                            VALUE = "0x" + atom_rom_header.usDeviceID.ToString("X")
-                        });
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "Sub ID",
-                            VALUE = "0x" + atom_rom_header.usSubsystemID.ToString("X")
-                        });
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "Sub VendorID",
-                            VALUE = "0x" + atom_rom_header.usSubsystemVendorID.ToString("X")
-                        });
-                        tableROM.Items.Add(new
-                        {
-                            NAME = "Firmware Signature",
-                            VALUE = "0x" + atom_rom_header.uaFirmWareSignature.ToString("X")
-                        });
+                        PopulateRomTable();
 
                         tablePOWERPLAY.Items.Clear();
                         tablePOWERPLAY.Items.Add(new
                         {
                             NAME = "Max GPU Freq. (MHz)",
-                            VALUE = atom_vega10_powerplay_table.ulMaxODEngineClock / 100
+                            VALUE = DecodeClockValue(atom_vega10_powerplay_table.ulMaxODEngineClock)
                         });
                         tablePOWERPLAY.Items.Add(new
                         {
                             NAME = "Max Memory Freq. (MHz)",
-                            VALUE = atom_vega10_powerplay_table.ulMaxODMemoryClock / 100
+                            VALUE = DecodeClockValue(atom_vega10_powerplay_table.ulMaxODMemoryClock)
                         });
                         tablePOWERPLAY.Items.Add(new
                         {
@@ -961,7 +1601,6 @@ namespace VegaBiosEditor
                             NAME = "Sensitivity",
                             VALUE = atom_vega10_fan_table.usFanOutputSensitivity
                         });
-                        tableFAN.Items.Clear();
                         tableFAN.Items.Add(new
                         {
                             NAME = "Target Temp. (C)",
@@ -972,11 +1611,6 @@ namespace VegaBiosEditor
                         {
                             NAME = "Throttling RPM",
                             VALUE = atom_vega10_fan_table.usThrottlingRPM
-                        });
-                        tableFAN.Items.Add(new
-                        {
-                            NAME = "Target Temp. (C)",
-                            VALUE = atom_vega10_fan_table.usTargetTemperature
                         });
                         tableFAN.Items.Add(new
                         {
@@ -1054,9 +1688,9 @@ namespace VegaBiosEditor
                         {
                             tableGPU.Items.Add(new
                             {
-                                MHZ = atom_vega10_gfxclk_entries[i].ulClk / 100u,
-                                MV = atom_vddc_entries[atom_vega10_gfxclk_entries[i].ucVddInd].usVdd,
-                                TT = ("0x" + atom_vddc_entries[atom_vega10_gfxclk_entries[i].ucVddInd].usVdd.ToString("X"))
+                                MHZ = DecodeClockValue(atom_vega10_gfxclk_entries[i].ulClk),
+                                MV = GetVoltageValue(atom_vddc_entries, atom_vega10_gfxclk_entries[i].ucVddInd, "VDDC"),
+                                TT = ("0x" + GetVoltageValue(atom_vddc_entries, atom_vega10_gfxclk_entries[i].ucVddInd, "VDDC").ToString("X"))
                             });
                         }
 
@@ -1065,9 +1699,9 @@ namespace VegaBiosEditor
                         {
                             tableMEMORY.Items.Add(new
                             {
-                                MHZ = atom_vega10_mclk_entries[i].ulMemClk / 100u,
-                                MV = atom_vddc_entries[i].usVdd,
-                                TT = ("0x" + atom_vddc_entries[i].usVdd.ToString("X"))
+                                MHZ = DecodeClockValue(atom_vega10_mclk_entries[i].ulMemClk),
+                                MV = GetVoltageValue(atom_vega10_memvdd_record, atom_vega10_mclk_entries[i].ucVddMemInd, "MEMVDD"),
+                                TT = ("0x" + GetVoltageValue(atom_vega10_memvdd_record, atom_vega10_mclk_entries[i].ucVddMemInd, "MEMVDD").ToString("X"))
                             });
                         }
                         /*
@@ -1081,65 +1715,20 @@ namespace VegaBiosEditor
                                 TT = ("0x" + atom_vddc_entries[i].usVdd.ToString("X"))
                             });
                         }*/
-                        /*
-                        listVRAM.Items.Clear();
-                        for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
-                        {
-                            if (atom_vram_entries[i].strMemPNString[0] != 0)
-                            {
-                                var mem_id = Encoding.UTF8.GetString(atom_vram_entries[i].strMemPNString).Substring(0, 10);
-                                string mem_vendor;
-                                if (rc.ContainsKey(mem_id))
-                                {
-                                    mem_vendor = rc[mem_id];
-                                }
-                                else
-                                {
-                                    mem_vendor = "UNKNOWN";
-                                }
-
-                                listVRAM.Items.Add(mem_id + " (" + mem_vendor + ")");
-                            }
-                        }
-                        listVRAM.SelectedIndex = 0;
-                        atom_vram_index = listVRAM.SelectedIndex;
-
-                        tableVRAM_TIMING.Items.Clear();
-                        for (var i = 0; i < atom_vram_timing_entries.Length; i++)
-                        {
-                            uint tbl = atom_vram_timing_entries[i].ulClkRange >> 0x4F00;
-                            tableVRAM_TIMING.Items.Add(new
-                            {
-                                MHZ = tbl.ToString() + ":" + (atom_vram_timing_entries[i].ulClkRange & 0x4300) / 100,
-                                VALUE = ByteArrayToString(atom_vram_timing_entries[i].ucLatency)
-                            });
-                        }
-                        */
-                        save.IsEnabled = true;
-                        boxROM.IsEnabled = true;
-                        boxPOWERPLAY.IsEnabled = true;
-                        boxPOWERTUNE.IsEnabled = true;
-                        boxFAN.IsEnabled = true;
-                        boxGPU.IsEnabled = true;
-                        boxMEM.IsEnabled = true;
-                        boxVRAM.IsEnabled = true;
+                        PopulateVramTables();
+                        SetEditorEnabled(true);
 
                         // Some BIOS attributes to describe the file
-                        txtRamNotes.Text = "";
-                        if (atom_rom_header.usConfigFilenameOffset > 0)
-                        {
-                            byte[] bfn = new byte[12];
-                            for (int i = 0; i < 12; i++) bfn[i] = buffer[atom_rom_header.usConfigFilenameOffset + i];
-                            txtRamNotes.Text += " " + System.Text.Encoding.ASCII.GetString(bfn);
-                        }
-                        if (atom_rom_header.usBIOS_BootupMessageOffset > 0)
-                        {
-                            byte[] bbm = new byte[64];
-                            for (int i = 0; i < 64; i++) bbm[i] = buffer[atom_rom_header.usBIOS_BootupMessageOffset + 2 + i];
-                            txtRamNotes.Text += " " + System.Text.Encoding.ASCII.GetString(bbm);
-                        }
+                        txtRamNotes.Text = (ReadAscii(atom_rom_header.usConfigFilenameOffset, 12) + " " + ReadAscii(atom_rom_header.usBIOS_BootupMessageOffset + 2, 64)).Trim();
                     }
-                    fileStream.Close();
+                }
+                catch (Exception ex)
+                {
+                    buffer = null;
+                    ClearTables();
+                    SetEditorEnabled(false);
+                    Title = baseWindowTitle;
+                    MessageBox.Show("Could not open BIOS file:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -1147,12 +1736,17 @@ namespace VegaBiosEditor
         public Int32 getValueAtPosition(int bits, int position, bool isFrequency = false)
         {
             int value = 0;
-            if (position <= buffer.Length - 4)
+            int byteCount = bits / 8;
+            if (bits == 24)
+            {
+                byteCount = 3;
+            }
+
+            if (HasBufferRange(position, byteCount))
             {
                 switch (bits)
                 {
                     case 8:
-                    default:
                         value = buffer[position];
                         break;
                     case 16:
@@ -1164,6 +1758,8 @@ namespace VegaBiosEditor
                     case 32:
                         value = (buffer[position + 3] << 24) | (buffer[position + 2] << 16) | (buffer[position + 1] << 8) | buffer[position];
                         break;
+                    default:
+                        return -1;
                 }
                 if (isFrequency) return value / 100;
                 return value;
@@ -1174,29 +1770,37 @@ namespace VegaBiosEditor
         public bool setValueAtPosition(int value, int bits, int position, bool isFrequency = false)
         {
             if (isFrequency) value *= 100;
-            if (position <= buffer.Length - 4)
+            int byteCount = bits / 8;
+            if (bits == 24)
             {
+                byteCount = 3;
+            }
+
+            if (HasBufferRange(position, byteCount))
+            {
+                uint rawValue = unchecked((uint)value);
                 switch (bits)
                 {
                     case 8:
-                    default:
-                        buffer[position] = (byte)value;
+                        buffer[position] = (byte)rawValue;
                         break;
                     case 16:
-                        buffer[position] = (byte)value;
-                        buffer[position + 1] = (byte)(value >> 8);
+                        buffer[position] = (byte)rawValue;
+                        buffer[position + 1] = (byte)(rawValue >> 8);
                         break;
                     case 24:
-                        buffer[position] = (byte)value;
-                        buffer[position + 1] = (byte)(value >> 8);
-                        buffer[position + 2] = (byte)(value >> 16);
+                        buffer[position] = (byte)rawValue;
+                        buffer[position + 1] = (byte)(rawValue >> 8);
+                        buffer[position + 2] = (byte)(rawValue >> 16);
                         break;
                     case 32:
-                        buffer[position] = (byte)value;
-                        buffer[position + 1] = (byte)(value >> 8);
-                        buffer[position + 2] = (byte)(value >> 16);
-                        buffer[position + 3] = (byte)(value >> 32);
+                        buffer[position] = (byte)rawValue;
+                        buffer[position + 1] = (byte)(rawValue >> 8);
+                        buffer[position + 2] = (byte)(rawValue >> 16);
+                        buffer[position + 3] = (byte)(rawValue >> 24);
                         break;
+                    default:
+                        return false;
                 }
                 return true;
             }
@@ -1206,328 +1810,432 @@ namespace VegaBiosEditor
         private bool setValueAtPosition(String text, int bits, int position, bool isFrequency = false)
         {
             int value = 0;
-            if (!int.TryParse(text, out value))
+            if (!TryParseInt32(text, out value))
             {
                 return false;
             }
             return setValueAtPosition(value, bits, position, isFrequency);
         }
 
+        private bool TryParseInt32(string text, out int value)
+        {
+            uint unsignedValue;
+            if (TryParseUInt32(text, out unsignedValue) && unsignedValue <= Int32.MaxValue)
+            {
+                value = (int)unsignedValue;
+                return true;
+            }
+
+            value = 0;
+            return false;
+        }
+
+        private bool TryParseUInt32(string text, out uint value)
+        {
+            value = 0;
+            if (String.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            text = text.Trim();
+            if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                return UInt32.TryParse(text.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
+            }
+
+            return UInt32.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        }
+
+        private uint ParseUInt32Value(string text, string name)
+        {
+            uint value;
+            if (!TryParseUInt32(text, out value))
+            {
+                throw new InvalidDataException(name + " has an invalid numeric value: " + text);
+            }
+
+            return value;
+        }
+
+        private ushort ParseUInt16Value(string text, string name)
+        {
+            uint value = ParseUInt32Value(text, name);
+            if (value > UInt16.MaxValue)
+            {
+                throw new InvalidDataException(name + " is larger than 65535.");
+            }
+
+            return (ushort)value;
+        }
+
+        private byte ParseByteValue(string text, string name)
+        {
+            uint value = ParseUInt32Value(text, name);
+            if (value > Byte.MaxValue)
+            {
+                throw new InvalidDataException(name + " is larger than 255.");
+            }
+
+            return (byte)value;
+        }
+
+        private string GetItemText(ListView table, int index, string elementName)
+        {
+            if (index < 0 || index >= table.Items.Count)
+            {
+                throw new InvalidDataException(table.Name + " row " + index + " is invalid.");
+            }
+
+            table.ScrollIntoView(table.Items[index]);
+            table.UpdateLayout();
+
+            var container = table.ItemContainerGenerator.ContainerFromIndex(index) as FrameworkElement;
+            var element = FindByName(elementName, container);
+            if (element is TextBox)
+            {
+                return ((TextBox)element).Text;
+            }
+            if (element is TextBlock)
+            {
+                return ((TextBlock)element).Text;
+            }
+
+            throw new InvalidDataException("Cannot read " + elementName + " from " + table.Name + " row " + index + ".");
+        }
+
+        private uint ParseClockValue(string text, string name)
+        {
+            uint mhz = ParseUInt32Value(text, name);
+            if (mhz > UInt32.MaxValue / 100u)
+            {
+                throw new InvalidDataException(name + " is too large.");
+            }
+
+            return mhz * 100u;
+        }
+
+        private byte ParseRpmHundreds(string text, string name)
+        {
+            uint rpm = ParseUInt32Value(text, name);
+            if (rpm % 100u != 0)
+            {
+                throw new InvalidDataException(name + " must be a multiple of 100 RPM.");
+            }
+
+            uint encoded = rpm / 100u;
+            if (encoded > Byte.MaxValue)
+            {
+                throw new InvalidDataException(name + " is larger than 25500 RPM.");
+            }
+
+            return (byte)encoded;
+        }
+
         private void SaveFileDialog_Click(object sender, RoutedEventArgs e)
         {
-            SaveFileDialog SaveFileDialog = new SaveFileDialog();
-            SaveFileDialog.Title = "Save As";
-            SaveFileDialog.Filter = "BIOS (*.rom)|*.rom";
-
-            if (SaveFileDialog.ShowDialog() == true)
+            if (buffer == null)
             {
-                FileStream fs = new FileStream(SaveFileDialog.FileName, FileMode.Create);
-                BinaryWriter bw = new BinaryWriter(fs);
+                MessageBox.Show("Open a BIOS file before saving.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            if (asicFamily != AsicFamily.Vega10)
+            {
+                MessageBox.Show("Saving is only enabled for Vega10 PowerPlay tables right now.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Title = "Save As";
+            saveFileDialog.Filter = "BIOS (*.rom)|*.rom";
+
+            if (saveFileDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                ATOM_ROM_HEADER romHeader = atom_rom_header;
+                ATOM_Vega10_POWERPLAYTABLE powerplayTable = atom_vega10_powerplay_table;
+                ATOM_Vega10_PowerTune_Table powertuneTable = atom_vega10_powertune_table;
+                ATOM_Vega10_Fan_Table fanTable = atom_vega10_fan_table;
+                ATOM_Vega10_GFXCLK_Dependency_Record_V2[] gfxEntries = (ATOM_Vega10_GFXCLK_Dependency_Record_V2[])atom_vega10_gfxclk_entries.Clone();
+                ATOM_Vega10_MCLK_Dependency_Record[] mclkEntries = (ATOM_Vega10_MCLK_Dependency_Record[])atom_vega10_mclk_entries.Clone();
+                ATOM_Vega10_Voltage_Lookup_Record[] vddcEntries = (ATOM_Vega10_Voltage_Lookup_Record[])atom_vddc_entries.Clone();
+                ATOM_Vega10_Voltage_Lookup_Record[] memvddEntries = (ATOM_Vega10_Voltage_Lookup_Record[])atom_vega10_memvdd_record.Clone();
 
                 for (var i = 0; i < tableROM.Items.Count; i++)
                 {
-                    var container = tableROM.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var name = (FindByName("NAME", container) as TextBlock).Text;
-                    var value = (FindByName("VALUE", container) as TextBox).Text;
-                    var num = (int)int32.ConvertFromString(value);
+                    var name = GetItemText(tableROM, i, "NAME");
+                    var value = GetItemText(tableROM, i, "VALUE");
 
                     if (name == "VendorID")
                     {
-                        atom_rom_header.usVendorID = (UInt16)num;
+                        romHeader.usVendorID = ParseUInt16Value(value, name);
                     }
                     else if (name == "DeviceID")
                     {
-                        atom_rom_header.usDeviceID = (UInt16)num;
+                        romHeader.usDeviceID = ParseUInt16Value(value, name);
                     }
                     else if (name == "Sub ID")
                     {
-                        atom_rom_header.usSubsystemID = (UInt16)num;
+                        romHeader.usSubsystemID = ParseUInt16Value(value, name);
                     }
                     else if (name == "Sub VendorID")
                     {
-                        atom_rom_header.usSubsystemVendorID = (UInt16)num;
+                        romHeader.usSubsystemVendorID = ParseUInt16Value(value, name);
                     }
                     else if (name == "Firmware Signature")
                     {
-                        atom_rom_header.uaFirmWareSignature = (UInt32)num;
+                        romHeader.uaFirmWareSignature = ParseUInt32Value(value, name);
                     }
                 }
 
                 for (var i = 0; i < tablePOWERPLAY.Items.Count; i++)
                 {
-                    var container = tablePOWERPLAY.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var name = (FindByName("NAME", container) as TextBlock).Text;
-                    var value = (FindByName("VALUE", container) as TextBox).Text;
-                    var num = (int)int32.ConvertFromString(value);
+                    var name = GetItemText(tablePOWERPLAY, i, "NAME");
+                    var value = GetItemText(tablePOWERPLAY, i, "VALUE");
 
                     if (name == "Max GPU Freq. (MHz)")
                     {
-                        atom_vega10_powerplay_table.ulMaxODEngineClock = (UInt32)(num * 100);
+                        powerplayTable.ulMaxODEngineClock = ParseClockValue(value, name);
                     }
                     else if (name == "Max Memory Freq. (MHz)")
                     {
-                        atom_vega10_powerplay_table.ulMaxODMemoryClock = (UInt32)(num * 100);
+                        powerplayTable.ulMaxODMemoryClock = ParseClockValue(value, name);
                     }
                     else if (name == "Power Control Limit (%)")
                     {
-                        atom_vega10_powerplay_table.usPowerControlLimit = (UInt16)num;
+                        powerplayTable.usPowerControlLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "ULV VoltageOffset (mV)")
                     {
-                        atom_vega10_powerplay_table.usUlvVoltageOffset = (UInt16)num;
+                        powerplayTable.usUlvVoltageOffset = ParseUInt16Value(value, name);
                     }
                 }
 
                 for (var i = 0; i < tablePOWERTUNE.Items.Count; i++)
                 {
-                    var container = tablePOWERTUNE.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var name = (FindByName("NAME", container) as TextBlock).Text;
-                    var value = (FindByName("VALUE", container) as TextBox).Text;
-                    var num = (int)int32.ConvertFromString(value);
+                    var name = GetItemText(tablePOWERTUNE, i, "NAME");
+                    var value = GetItemText(tablePOWERTUNE, i, "VALUE");
 
                     if (name == "Socket Power (W)")
                     {
-                        atom_vega10_powertune_table.usSocketPowerLimit = (UInt16)num;
+                        powertuneTable.usSocketPowerLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "Battery Power (W)")
                     {
-                        atom_vega10_powertune_table.usBatteryPowerLimit = (UInt16)num;
+                        powertuneTable.usBatteryPowerLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "Small Power Limit (W)")
                     {
-                        atom_vega10_powertune_table.usSmallPowerLimit = (UInt16)num;
+                        powertuneTable.usSmallPowerLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "EDC Module Limit")
                     {
-                        atom_vega10_powertune_table.usEdcLimit = (UInt16)num;
+                        powertuneTable.usEdcLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "TDC (A)")
                     {
-                        atom_vega10_powertune_table.usTdcLimit = (UInt16)num;
+                        powertuneTable.usTdcLimit = ParseUInt16Value(value, name);
                     }
                     else if (name == "Temp. Limit (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitTedge = (UInt16)num;
+                        powertuneTable.usTemperatureLimitTedge = ParseUInt16Value(value, name);
                     }
                     else if (name == "Shutdown Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usSoftwareShutdownTemp = (UInt16)num;
+                        powertuneTable.usSoftwareShutdownTemp = ParseUInt16Value(value, name);
                     }
                     else if (name == "Hotspot Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitHotSpot = (UInt16)num;
+                        powertuneTable.usTemperatureLimitHotSpot = ParseUInt16Value(value, name);
                     }
                     else if (name == "Liquid 1 Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitLiquid1 = (UInt16)num;
+                        powertuneTable.usTemperatureLimitLiquid1 = ParseUInt16Value(value, name);
                     }
                     else if (name == "Liquid 2 Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitLiquid2 = (UInt16)num;
+                        powertuneTable.usTemperatureLimitLiquid2 = ParseUInt16Value(value, name);
                     }
                     else if (name == "HBM Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitHBM = (UInt16)num;
+                        powertuneTable.usTemperatureLimitHBM = ParseUInt16Value(value, name);
                     }
                     else if (name == "VR Soc Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitVrSoc = (UInt16)num;
+                        powertuneTable.usTemperatureLimitVrSoc = ParseUInt16Value(value, name);
                     }
                     else if (name == "VR Mem Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitVrMem = (UInt16)num;
+                        powertuneTable.usTemperatureLimitVrMem = ParseUInt16Value(value, name);
                     }
                     else if (name == "PLX Temp. (C)")
                     {
-                        atom_vega10_powertune_table.usTemperatureLimitPlx = (UInt16)num;
+                        powertuneTable.usTemperatureLimitPlx = ParseUInt16Value(value, name);
                     }
                 }
 
                 for (var i = 0; i < tableFAN.Items.Count; i++)
                 {
-                    var container = tableFAN.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var name = (FindByName("NAME", container) as TextBlock).Text;
-                    var value = (FindByName("VALUE", container) as TextBox).Text;
-                    var num = (int)int32.ConvertFromString(value);
+                    var name = GetItemText(tableFAN, i, "NAME");
+                    var value = GetItemText(tableFAN, i, "VALUE");
 
                     if (name == "Sensitivity")
                     {
-                        atom_vega10_fan_table.usFanOutputSensitivity = (UInt16)num;
+                        fanTable.usFanOutputSensitivity = ParseUInt16Value(value, name);
                     }
                     else if (name == "Target Temp. (C)")
                     {
-                        atom_vega10_fan_table.usTargetTemperature = (UInt16)num;
+                        fanTable.usTargetTemperature = ParseUInt16Value(value, name);
                     }
                     else if (name == "Throttling RPM")
                     {
-                        atom_vega10_fan_table.usThrottlingRPM = (UInt16)num;
+                        fanTable.usThrottlingRPM = ParseUInt16Value(value, name);
                     }
                     else if (name == "Target Gfx Clk")
                     {
-                        atom_vega10_fan_table.usTargetGfxClk = (UInt16)num;
+                        fanTable.usTargetGfxClk = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: Edge")
                     {
-                        atom_vega10_fan_table.usFanGainEdge = (UInt16)num;
+                        fanTable.usFanGainEdge = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: Hotspot")
                     {
-                        atom_vega10_fan_table.usFanGainHotspot = (UInt16)num;
+                        fanTable.usFanGainHotspot = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: Liquid")
                     {
-                        atom_vega10_fan_table.usFanGainLiquid = (UInt16)num;
+                        fanTable.usFanGainLiquid = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: VrVddc")
                     {
-                        atom_vega10_fan_table.usFanGainVrVddc = (UInt16)num;//(num * 100)
+                        fanTable.usFanGainVrVddc = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: VrMvdd")
                     {
-                        atom_vega10_fan_table.usFanGainVrMvdd = (UInt16)num;
+                        fanTable.usFanGainVrMvdd = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: Plx")
                     {
-                        atom_vega10_fan_table.usFanGainPlx = (UInt16)num;
+                        fanTable.usFanGainPlx = ParseUInt16Value(value, name);
                     }
                     else if (name == "Fan Gain: HBM")
                     {
-                        atom_vega10_fan_table.usFanGainHbm = (UInt16)num;
+                        fanTable.usFanGainHbm = ParseUInt16Value(value, name);
                     }
                     else if (name == "Acoustic Limit (MHz)")
                     {
-                        atom_vega10_fan_table.usFanAcousticLimitRpm = (UInt16)num;
-                    }/*
-                    else if (name == "Fan Stop Temperature")
-                    {
-                        atom_vega10_fan_table.usFanStopTemperature = (UInt16)num;
+                        fanTable.usFanAcousticLimitRpm = ParseUInt16Value(value, name);
                     }
-                    else if (name == "Fan Start Temperature")
-                    {
-                        atom_vega10_fan_table.usFanStartTemperature = (UInt16)num;
-                    }*/
                     else if (name == "Fan Parameters")
                     {
-                        atom_vega10_fan_table.ucFanParameters = (Byte)num;
+                        fanTable.ucFanParameters = ParseByteValue(value, name);
                     }
                     else if (name == "Fan Min RPM")
                     {
-                        atom_vega10_fan_table.ucFanMinRPM = (Byte)(num * 100);
+                        fanTable.ucFanMinRPM = ParseRpmHundreds(value, name);
                     }
                     else if (name == "Fan Max RPM")
                     {
-                        atom_vega10_fan_table.ucFanMaxRPM = (Byte)(num * 100);
+                        fanTable.ucFanMaxRPM = ParseRpmHundreds(value, name);
                     }
                 }
 
                 for (var i = 0; i < tableGPU.Items.Count; i++)
                 {
-                    var container = tableGPU.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var mhz = (int)int32.ConvertFromString(((TextBox)FindByName("MHZ", container)).Text) * 100;
-                    var mv = (int)int32.ConvertFromString(((TextBox)FindByName("MV", container)).Text);
-
-                    atom_vega10_gfxclk_entries[i].ulClk = (UInt32)mhz;
-                    atom_vddc_entries[atom_vega10_gfxclk_entries[i].ucVddInd].usVdd = (UInt16)mv;
-                    /*
-                    if (mv < 0xFF00)
+                    if (i >= gfxEntries.Length)
                     {
-                        atom_vega10_gfxclk_entries[i].usVddcOffset = 0;
-                    }*/
+                        throw new InvalidDataException("GPU table row count does not match the BIOS table.");
+                    }
+
+                    gfxEntries[i].ulClk = ParseClockValue(GetItemText(tableGPU, i, "MHZ"), "GPU MHz");
+                    SetVoltageValue(vddcEntries, gfxEntries[i].ucVddInd, ParseUInt16Value(GetItemText(tableGPU, i, "MV"), "GPU mV"), "VDDC");
                 }
 
                 for (var i = 0; i < tableMEMORY.Items.Count; i++)
                 {
-                    var container = tableMEMORY.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var mhz = (int)int32.ConvertFromString(((TextBox)FindByName("MHZ", container)).Text) * 100;
-                    var mv = (int)int32.ConvertFromString(((TextBox)FindByName("MV", container)).Text);
+                    if (i >= mclkEntries.Length)
+                    {
+                        throw new InvalidDataException("Memory table row count does not match the BIOS table.");
+                    }
 
-                    atom_vega10_mclk_entries[i].ulMemClk = (UInt32)mhz;
-                    atom_vddc_entries[i].usVdd = (UInt16)mv;
+                    mclkEntries[i].ulMemClk = ParseClockValue(GetItemText(tableMEMORY, i, "MHZ"), "Memory MHz");
+                    SetVoltageValue(memvddEntries, mclkEntries[i].ucVddMemInd, ParseUInt16Value(GetItemText(tableMEMORY, i, "MV"), "Memory mV"), "MEMVDD");
                 }
-                /*
-                for (var i = 0; i < tableSOC.Items.Count; i++)
-                {
-                    var container = tableSOC.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var mhz = (int)int32.ConvertFromString(((TextBox)FindByName("MHZ", container)).Text) * 100;
-                    var mv = (int)int32.ConvertFromString(((TextBox)FindByName("MV", container)).Text);
 
-                    atom_vega10_clk_entries[i].ulClk = (UInt32)mhz;
-                    atom_vddc_entries[i].usVdd = (UInt16)mv;
-                }*/
-                /*
                 updateVRAM_entries();
-                for (var i = 0; i < tableVRAM_TIMING.Items.Count; i++)
-                {
-                    var container = tableVRAM_TIMING.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                    var name = (FindByName("MHZ", container) as TextBlock).Text;
-                    var value = (FindByName("VALUE", container) as TextBox).Text;
-                    var arr = StringToByteArray(value);
-                    UInt32 mhz;
-                    if (name.IndexOf(':') > 0)
-                    {
-                        mhz = (UInt32)uint32.ConvertFromString(name.Substring(name.IndexOf(':') + 1)) * 100;
-                        mhz += (UInt32)uint32.ConvertFromString(name.Substring(0, name.IndexOf(':'))) << 24; // table id
-                    }
-                    else
-                    {
-                        mhz = (UInt32)uint32.ConvertFromString(name) * 100;
-                    }
-                    atom_vram_timing_entries[i].ulClkRange = mhz;
-                    atom_vram_timing_entries[i].ucLatency = arr;
-                }
-                */
-                setBytesAtPosition(buffer, atom_rom_header_offset, getBytes(atom_rom_header));
-                setBytesAtPosition(buffer, atom_vega10_powerplay_offset, getBytes(atom_vega10_powerplay_offset));
-                setBytesAtPosition(buffer, atom_vega10_powertune_table_offset, getBytes(atom_vega10_powertune_table_offset));
-                setBytesAtPosition(buffer, atom_vega10_fan_offset, getBytes(atom_vega10_fan_table));
+
+                atom_rom_header = romHeader;
+                atom_vega10_powerplay_table = powerplayTable;
+                atom_vega10_powertune_table = powertuneTable;
+                atom_vega10_fan_table = fanTable;
+                atom_vega10_gfxclk_entries = gfxEntries;
+                atom_vega10_mclk_entries = mclkEntries;
+                atom_vddc_entries = vddcEntries;
+                atom_vega10_memvdd_record = memvddEntries;
+
+                WriteStruct(atom_rom_header_offset, atom_rom_header);
+                WriteStruct(atom_vega10_powerplay_offset, atom_vega10_powerplay_table);
+                WriteStruct(atom_vega10_powertune_table_offset, atom_vega10_powertune_table);
+                WriteStruct(atom_vega10_fan_offset, atom_vega10_fan_table);
 
                 for (var i = 0; i < atom_vega10_mclk_table.ucNumEntries; i++)
                 {
-                    setBytesAtPosition(buffer, atom_vega10_mclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Record)) * i, getBytes(atom_vega10_mclk_entries[i]));
+                    WriteStruct(atom_vega10_mclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_MCLK_Dependency_Record)) * i, atom_vega10_mclk_entries[i]);
                 }
 
                 for (var i = 0; i < atom_vega10_gfxclk_table.ucNumEntries; i++)
                 {
-                    setBytesAtPosition(buffer, atom_vega10_gfxclk_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_GFXCLK_Dependency_Record)) * i, getBytes(atom_vega10_gfxclk_entries[i]));
+                    WriteGfxclkDependencyRecord(i, atom_vega10_gfxclk_entries[i]);
                 }
 
                 for (var i = 0; i < atom_vddc_table.ucNumEntries; i++)
                 {
-                    setBytesAtPosition(buffer, atom_vddc_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i, getBytes(atom_vddc_entries[i]));
-                }
-                /*
-                var atom_vram_entry_offset = atom_vram_info_offset + Marshal.SizeOf(typeof(ATOM_VRAM_INFO));
-                for (var i = 0; i < atom_vram_info.ucNumOfVRAMModule; i++)
-                {
-                    setBytesAtPosition(buffer, atom_vram_entry_offset, getBytes(atom_vram_entries[i]));
-                    atom_vram_entry_offset += atom_vram_entries[i].usModuleSize;
+                    WriteStruct(atom_vddc_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i, atom_vddc_entries[i]);
                 }
 
-                atom_vram_timing_offset = atom_vram_info_offset + atom_vram_info.usMemClkPatchTblOffset + 0x2E;
-                for (var i = 0; i < atom_vram_timing_entries.Length; i++)
+                for (var i = 0; i < atom_vega10_memvdd_table.ucNumEntries; i++)
                 {
-                    setBytesAtPosition(buffer, atom_vram_timing_offset + Marshal.SizeOf(typeof(ATOM_VRAM_TIMING_ENTRY)) * i, getBytes(atom_vram_timing_entries[i]));
+                    WriteStruct(atom_vega10_memvdd_table_offset + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Table)) + Marshal.SizeOf(typeof(ATOM_Vega10_Voltage_Lookup_Record)) * i, atom_vega10_memvdd_record[i]);
                 }
-                */
+
+                WriteVramInfo();
+
                 fixChecksum(true);
-                bw.Write(buffer);
-
-                fs.Close();
-                bw.Close();
+                File.WriteAllBytes(saveFileDialog.FileName, buffer);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not save BIOS file:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void fixChecksum(bool save)
         {
-            Byte checksum = buffer[atom_rom_checksum_offset];
+            if (!HasBufferRange(atom_rom_checksum_offset, 1) || !HasBufferRange(0x02, 1))
+            {
+                throw new InvalidDataException("Cannot calculate checksum because the ROM header is incomplete.");
+            }
+
+            byte checksum = buffer[atom_rom_checksum_offset];
             int size = buffer[0x02] * 512;
-            Byte offset = 0;
+            if (size <= 0 || size > buffer.Length)
+            {
+                size = buffer.Length;
+            }
+
+            int sum = 0;
 
             for (int i = 0; i < size; i++)
             {
-                offset += buffer[i];
+                sum = (sum + buffer[i]) & 0xFF;
             }
-            if (checksum == (buffer[atom_rom_checksum_offset] - offset))
+
+            if (sum == 0)
             {
                 txtChecksum.Foreground = Brushes.Green;
             }
@@ -1538,14 +2246,19 @@ namespace VegaBiosEditor
             }
             if (save)
             {
-                buffer[atom_rom_checksum_offset] -= offset;
+                buffer[atom_rom_checksum_offset] = unchecked((byte)(checksum - sum));
                 txtChecksum.Foreground = Brushes.Green;
             }
-            txtChecksum.Text = "0x" + buffer[atom_rom_checksum_offset].ToString("X");
+            txtChecksum.Text = "0x" + buffer[atom_rom_checksum_offset].ToString("X2");
         }
 
         private FrameworkElement FindByName(string name, FrameworkElement root)
         {
+            if (root == null)
+            {
+                return null;
+            }
+
             Stack<FrameworkElement> tree = new Stack<FrameworkElement>();
             tree.Push(root);
 
@@ -1574,6 +2287,12 @@ namespace VegaBiosEditor
 
         public static byte[] StringToByteArray(String hex)
         {
+            if (hex == null)
+            {
+                throw new InvalidDataException();
+            }
+
+            hex = hex.Trim().Replace(" ", "").Replace("-", "");
             if (hex.Length % 2 != 0)
             {
                 MessageBox.Show("Invalid hex string", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -1589,28 +2308,67 @@ namespace VegaBiosEditor
 
         public void updateVRAM_entries()
         {
+            if (atom_vram_entries == null || atom_vram_index < 0 || atom_vram_index >= atom_vram_entries.Length)
+            {
+                return;
+            }
+
             for (var i = 0; i < tableVRAM.Items.Count; i++)
             {
-                var container = tableVRAM.ItemContainerGenerator.ContainerFromIndex(i) as FrameworkElement;
-                var name = (FindByName("NAME", container) as TextBlock).Text;
-                var value = (FindByName("VALUE", container) as TextBox).Text;
-                var num = (int)int32.ConvertFromString(value);
+                var name = GetItemText(tableVRAM, i, "NAME");
+                var value = GetItemText(tableVRAM, i, "VALUE");
 
-                if (name == "VendorID")
+                if (name == "Vendor/Rev ID")
                 {
-                    atom_vram_entries[atom_vram_index].ucMemoryVenderID = (Byte)num;
+                    atom_vram_entries[atom_vram_index].ucMemoryVendorRevID = ParseByteValue(value, name);
+                }
+                else if (name == "HBM Vendor ID")
+                {
+                    atom_vram_entries[atom_vram_index].ucHbmVendorRevID = ParseByteValue(value, name);
                 }
                 else if (name == "Size (MB)")
                 {
-                    atom_vram_entries[atom_vram_index].usMemorySize = (UInt16)num;
+                    atom_vram_entries[atom_vram_index].ulMemorySize = ParseUInt32Value(value, name);
+                }
+                else if (name == "Max Mem Clock (MHz)")
+                {
+                    atom_vram_entries[atom_vram_index].ulMaxMemClk = ParseClockValue(value, name);
+                }
+                else if (name == "Mem Voltage (mV)")
+                {
+                    atom_vram_entries[atom_vram_index].usMemVoltage = ParseUInt16Value(value, name);
                 }
                 else if (name == "Density")
                 {
-                    atom_vram_entries[atom_vram_index].ucDensity = (Byte)num;
+                    atom_vram_entries[atom_vram_index].ucDensity = ParseByteValue(value, name);
                 }
                 else if (name == "Type")
                 {
-                    atom_vram_entries[atom_vram_index].ucMemoryType = (Byte)num;
+                    atom_vram_entries[atom_vram_index].ucMemoryType = ParseByteValue(value, name);
+                }
+                else if (name == "Channels")
+                {
+                    atom_vram_entries[atom_vram_index].ucChannelNum = ParseByteValue(value, name);
+                }
+                else if (name == "Channel Width")
+                {
+                    atom_vram_entries[atom_vram_index].ucChannelWidth = ParseByteValue(value, name);
+                }
+                else if (name == "Channel Enable")
+                {
+                    atom_vram_entries[atom_vram_index].ulChannelEnable = ParseUInt32Value(value, name);
+                }
+                else if (name == "Tuning Set")
+                {
+                    atom_vram_entries[atom_vram_index].ucTuningSetId = ParseByteValue(value, name);
+                }
+                else if (name == "Refresh")
+                {
+                    atom_vram_entries[atom_vram_index].ucRefreshRate = ParseByteValue(value, name);
+                }
+                else if (name == "Part Number")
+                {
+                    atom_vram_entries[atom_vram_index].strMemPNString = MakeFixedAscii(value, 20);
                 }
             }
         }
@@ -1618,31 +2376,7 @@ namespace VegaBiosEditor
         private void listVRAM_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             updateVRAM_entries();
-            tableVRAM.Items.Clear();
-            if (listVRAM.SelectedIndex >= 0 && listVRAM.SelectedIndex < listVRAM.Items.Count)
-            {
-                atom_vram_index = listVRAM.SelectedIndex;
-                tableVRAM.Items.Add(new
-                {
-                    NAME = "VendorID",
-                    VALUE = "0x" + atom_vram_entries[atom_vram_index].ucMemoryVenderID.ToString("X")
-                });
-                tableVRAM.Items.Add(new
-                {
-                    NAME = "Size (MB)",
-                    VALUE = atom_vram_entries[atom_vram_index].usMemorySize
-                });
-                tableVRAM.Items.Add(new
-                {
-                    NAME = "Density",
-                    VALUE = "0x" + atom_vram_entries[atom_vram_index].ucDensity.ToString("X")
-                });
-                tableVRAM.Items.Add(new
-                {
-                    NAME = "Type",
-                    VALUE = "0x" + atom_vram_entries[atom_vram_index].ucMemoryType.ToString("X")
-                });
-            }
+            ShowVramEntry(listVRAM.SelectedIndex);
         }
 
         private void listVRAM_SelectedIndexChanged(object sender, EventArgs e)
